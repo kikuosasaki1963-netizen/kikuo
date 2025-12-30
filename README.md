@@ -9,6 +9,7 @@
 - **対話形式生成**: 複数話者によるスクリプトから対話音声を生成
 - **ナレーション生成**: マークダウン/テキストから章ごとにナレーション生成
 - **音声トラック作成**: BGM付きの動画用音声トラックを作成
+- **Gemini TTS**: 感情豊かで自然な音声生成（推奨）
 
 ## 必要条件
 
@@ -150,6 +151,19 @@ voice-agent google-doc <document-id> -o output.mp3
 ```bash
 voice-agent dialogue script.txt -o dialogue.mp3
 ```
+
+### Gemini TTS（推奨：感情豊かな音声）
+
+Gemini TTSを使用すると、より自然で感情豊かな対話音声を生成できます。
+
+```bash
+# Gemini TTS で対話音声を生成
+python gemini_dialogue.py script.txt output.mp3
+```
+
+**必要な設定:**
+1. [Google AI Studio](https://aistudio.google.com/apikey) でAPIキーを取得
+2. 環境変数を設定: `export GEMINI_API_KEY="your-api-key"`
 
 ### ナレーション生成
 
