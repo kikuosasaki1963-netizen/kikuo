@@ -19,7 +19,7 @@ JAPANESE_VOICES = {
     "male_1": VoiceConfig(name="ja-JP-Neural2-C", language_code="ja-JP"),
     "male_2": VoiceConfig(name="ja-JP-Neural2-D", language_code="ja-JP"),
     "female_1": VoiceConfig(name="ja-JP-Neural2-B", language_code="ja-JP"),
-    "female_2": VoiceConfig(name="ja-JP-Neural2-A", language_code="ja-JP"),
+    "female_2": VoiceConfig(name="ja-JP-Wavenet-A", language_code="ja-JP"),
     "narrator": VoiceConfig(name="ja-JP-Neural2-B", language_code="ja-JP", speaking_rate=0.9),
 }
 
