@@ -212,21 +212,26 @@ def generate_audio(segments, progress_bar, status_text):
                     raise ValueError("音声データが空です")
 
             except Exception as e:
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    wait_time = 7 * (attempt + 1)  # 7, 14, 21秒待機
+                error_str = str(e)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    wait_time = 60  # 60秒待機（APIが51秒を推奨）
                     status_text.text(f"レート制限: {wait_time}秒待機中... ({i+1}/{len(segments)})")
                     time.sleep(wait_time)
+                elif "500" in error_str or "INTERNAL" in error_str:
+                    wait_time = 10
+                    status_text.text(f"サーバーエラー: {wait_time}秒後に再試行... ({i+1}/{len(segments)})")
+                    time.sleep(wait_time)
                 elif attempt < max_retries - 1:
-                    time.sleep(2)
+                    time.sleep(3)
                 else:
-                    st.warning(f"スキップ: {speaker}: {text[:20]}... ({e})")
+                    st.warning(f"スキップ: {speaker}: {text[:20]}...")
                     break
 
         progress_bar.progress((i + 1) / len(segments))
         status_text.text(f"生成中: {i+1}/{len(segments)} - {speaker}: {text[:30]}...")
 
-        # レート制限を避けるため少し待機
-        time.sleep(1)
+        # レート制限を避けるため待機（10リクエスト/分 = 6秒間隔）
+        time.sleep(6)
 
     # 音声を結合
     status_text.text("音声を結合中...")
