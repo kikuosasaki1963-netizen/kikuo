@@ -1,14 +1,15 @@
-"""Voice Generator Web App - Streamlit"""
+"""Voice Generator Web App - Streamlit (No pydub)"""
 import os
 import re
 import wave
 import tempfile
+import struct
 import streamlit as st
 from google import genai
 from google.genai import types
-from pydub import AudioSegment
 from docx import Document
 import io
+import subprocess
 
 # ページ設定
 st.set_page_config(
@@ -92,6 +93,41 @@ def read_word_file(uploaded_file):
 
     return '\n'.join(result)
 
+# WAVファイル結合（pydub不要）
+def combine_wav_files(wav_files, output_path):
+    """Combine multiple WAV files into one."""
+    if not wav_files:
+        return
+
+    # 最初のファイルからパラメータを取得
+    with wave.open(wav_files[0], 'rb') as first:
+        params = first.getparams()
+
+    # 無音データ（300ms）
+    silence_frames = int(params.framerate * 0.3) * params.nchannels * params.sampwidth
+    silence = b'\x00' * silence_frames
+
+    # 全ファイルを結合
+    with wave.open(output_path, 'wb') as output:
+        output.setparams(params)
+        for wav_file in wav_files:
+            with wave.open(wav_file, 'rb') as w:
+                output.writeframes(w.readframes(w.getnframes()))
+            output.writeframes(silence)
+
+# WAVをMP3に変換
+def wav_to_mp3(wav_path, mp3_path):
+    """Convert WAV to MP3 using ffmpeg."""
+    try:
+        subprocess.run(
+            ['ffmpeg', '-y', '-i', wav_path, '-codec:a', 'libmp3lame', '-q:a', '2', mp3_path],
+            capture_output=True,
+            check=True
+        )
+        return True
+    except:
+        return False
+
 # 音声生成
 def generate_audio(segments, progress_bar, status_text):
     speakers = list(set(seg["speaker"] for seg in segments))
@@ -110,6 +146,7 @@ def generate_audio(segments, progress_bar, status_text):
             speaker_styles[speaker] = "as a calm knowledgeable expert speaking Japanese"
 
     temp_files = []
+    temp_dir = tempfile.mkdtemp()
 
     for i, segment in enumerate(segments):
         speaker = segment["speaker"]
@@ -136,14 +173,15 @@ def generate_audio(segments, progress_bar, status_text):
             )
 
             audio_data = response.candidates[0].content.parts[0].inline_data.data
+            temp_path = os.path.join(temp_dir, f"segment_{i}.wav")
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-                with wave.open(f.name, "wb") as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(24000)
-                    wf.writeframes(audio_data)
-                temp_files.append(f.name)
+            with wave.open(temp_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(audio_data)
+
+            temp_files.append(temp_path)
 
             progress_bar.progress((i + 1) / len(segments))
             status_text.text(f"生成中: {i+1}/{len(segments)} - {speaker}: {text[:30]}...")
@@ -153,20 +191,39 @@ def generate_audio(segments, progress_bar, status_text):
 
     # 音声を結合
     status_text.text("音声を結合中...")
-    combined = AudioSegment.empty()
-    silence = AudioSegment.silent(duration=300)
+    combined_wav = os.path.join(temp_dir, "combined.wav")
+    combine_wav_files(temp_files, combined_wav)
 
-    for f in temp_files:
-        segment = AudioSegment.from_wav(f)
-        combined += segment + silence
-        os.remove(f)
+    # MP3に変換
+    combined_mp3 = os.path.join(temp_dir, "output.mp3")
+    if wav_to_mp3(combined_wav, combined_mp3):
+        with open(combined_mp3, 'rb') as f:
+            output_buffer = io.BytesIO(f.read())
+    else:
+        # MP3変換失敗時はWAVを返す
+        with open(combined_wav, 'rb') as f:
+            output_buffer = io.BytesIO(f.read())
 
-    # 出力
-    output_buffer = io.BytesIO()
-    combined.export(output_buffer, format="mp3")
     output_buffer.seek(0)
 
-    return output_buffer, len(combined) / 1000
+    # 長さを計算
+    with wave.open(combined_wav, 'rb') as w:
+        duration = w.getnframes() / w.getframerate()
+
+    # 一時ファイル削除
+    for f in temp_files:
+        try:
+            os.remove(f)
+        except:
+            pass
+    try:
+        os.remove(combined_wav)
+        os.remove(combined_mp3)
+        os.rmdir(temp_dir)
+    except:
+        pass
+
+    return output_buffer, duration
 
 # 入力方法選択
 st.subheader("📝 スクリプト入力")
