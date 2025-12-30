@@ -4,6 +4,7 @@ import re
 import wave
 import tempfile
 import struct
+import time
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -172,38 +173,60 @@ def generate_audio(segments, progress_bar, status_text):
 
         prompt = f"Say {style}: {text}" if style else text
 
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash-preview-tts",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name=voice,
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash-preview-tts",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name=voice,
+                                )
                             )
-                        )
+                        ),
                     ),
-                ),
-            )
+                )
 
-            audio_data = response.candidates[0].content.parts[0].inline_data.data
-            temp_path = os.path.join(temp_dir, f"segment_{i}.wav")
+                # レスポンスの検証
+                if (response.candidates and
+                    response.candidates[0].content and
+                    response.candidates[0].content.parts and
+                    response.candidates[0].content.parts[0].inline_data):
 
-            with wave.open(temp_path, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(24000)
-                wf.writeframes(audio_data)
+                    audio_data = response.candidates[0].content.parts[0].inline_data.data
+                    temp_path = os.path.join(temp_dir, f"segment_{i}.wav")
 
-            temp_files.append(temp_path)
+                    with wave.open(temp_path, "wb") as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(24000)
+                        wf.writeframes(audio_data)
 
-            progress_bar.progress((i + 1) / len(segments))
-            status_text.text(f"生成中: {i+1}/{len(segments)} - {speaker}: {text[:30]}...")
+                    temp_files.append(temp_path)
+                    break  # 成功したらループを抜ける
+                else:
+                    raise ValueError("音声データが空です")
 
-        except Exception as e:
-            st.error(f"エラー: {e}")
+            except Exception as e:
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    wait_time = 7 * (attempt + 1)  # 7, 14, 21秒待機
+                    status_text.text(f"レート制限: {wait_time}秒待機中... ({i+1}/{len(segments)})")
+                    time.sleep(wait_time)
+                elif attempt < max_retries - 1:
+                    time.sleep(2)
+                else:
+                    st.warning(f"スキップ: {speaker}: {text[:20]}... ({e})")
+                    break
+
+        progress_bar.progress((i + 1) / len(segments))
+        status_text.text(f"生成中: {i+1}/{len(segments)} - {speaker}: {text[:30]}...")
+
+        # レート制限を避けるため少し待機
+        time.sleep(1)
 
     # 音声を結合
     status_text.text("音声を結合中...")
