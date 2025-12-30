@@ -173,7 +173,8 @@ def generate_audio(segments, progress_bar, status_text):
 
         prompt = f"Say {style}: {text}" if style else text
 
-        max_retries = 5
+        max_retries = 10
+        success = False
         for attempt in range(max_retries):
             try:
                 response = client.models.generate_content(
@@ -207,6 +208,7 @@ def generate_audio(segments, progress_bar, status_text):
                         wf.writeframes(audio_data)
 
                     temp_files.append(temp_path)
+                    success = True
                     break  # 成功したらループを抜ける
                 else:
                     raise ValueError("音声データが空です")
@@ -214,22 +216,24 @@ def generate_audio(segments, progress_bar, status_text):
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    wait_time = 60  # 60秒待機（APIが51秒を推奨）
-                    status_text.text(f"レート制限: {wait_time}秒待機中... ({i+1}/{len(segments)})")
+                    wait_time = 65  # 65秒待機
+                    status_text.text(f"レート制限: {wait_time}秒待機中... ({i+1}/{len(segments)}) [{attempt+1}/{max_retries}]")
                     time.sleep(wait_time)
                 elif "500" in error_str or "INTERNAL" in error_str:
+                    wait_time = 15
+                    status_text.text(f"サーバーエラー: {wait_time}秒後に再試行... ({i+1}/{len(segments)}) [{attempt+1}/{max_retries}]")
+                    time.sleep(wait_time)
+                elif "音声データが空" in error_str or "NoneType" in error_str or "parts" in error_str:
                     wait_time = 10
-                    status_text.text(f"サーバーエラー: {wait_time}秒後に再試行... ({i+1}/{len(segments)})")
+                    status_text.text(f"再試行中: {wait_time}秒待機... ({i+1}/{len(segments)}) [{attempt+1}/{max_retries}]")
                     time.sleep(wait_time)
-                elif "音声データが空" in error_str or "NoneType" in error_str:
-                    wait_time = 8
-                    status_text.text(f"空レスポンス: {wait_time}秒後に再試行 ({attempt+1}/{max_retries})...")
-                    time.sleep(wait_time)
-                elif attempt < max_retries - 1:
-                    time.sleep(5)
                 else:
-                    st.warning(f"スキップ: {speaker}: {text[:20]}...")
-                    break
+                    wait_time = 10
+                    status_text.text(f"エラー再試行: {wait_time}秒待機... ({i+1}/{len(segments)}) [{attempt+1}/{max_retries}]")
+                    time.sleep(wait_time)
+
+        if not success:
+            st.warning(f"失敗: {speaker}: {text[:30]}...")
 
         progress_bar.progress((i + 1) / len(segments))
         status_text.text(f"生成中: {i+1}/{len(segments)} - {speaker}: {text[:30]}...")
