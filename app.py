@@ -38,11 +38,28 @@ client = get_client()
 # スクリプト解析
 def parse_dialogue(content):
     segments = []
-    # Speaker 1/2 を 話者1/2 に変換
+
+    # 様々な形式を統一フォーマットに変換
+    # Speaker 1/2 → 話者1/2
     content = content.replace('Speaker 1:', '[話者1]:')
     content = content.replace('Speaker 2:', '[話者2]:')
 
-    pattern = r'\[(話者\d+|[^\]]+)\]:\s*(.+)'
+    # （話者1）や（話者２）→ [話者1]
+    content = re.sub(r'（(話者\d+)）[:：]?\s*', r'[\1]: ', content)
+    content = re.sub(r'\((話者\d+)\)[:：]?\s*', r'[\1]: ', content)
+
+    # 全角数字を半角に変換
+    content = content.replace('１', '1').replace('２', '2').replace('３', '3')
+    content = content.replace('４', '4').replace('５', '5')
+
+    # 話者1: や 話者2: （括弧なし）→ [話者1]:
+    content = re.sub(r'(?<!\[)(話者\d+)[:：]\s*', r'[\1]: ', content)
+
+    # A: B: などのアルファベット話者
+    content = re.sub(r'^([A-Za-z])[:：]\s*', r'[\1]: ', content, flags=re.MULTILINE)
+
+    # 複数のパターンに対応
+    pattern = r'\[(話者\d+|[^\]]+)\][:：]?\s*(.+)'
     for match in re.finditer(pattern, content):
         speaker = match.group(1).strip()
         text = match.group(2).strip()
