@@ -173,7 +173,7 @@ def generate_audio(segments, progress_bar, status_text):
 
         prompt = f"Say {style}: {text}" if style else text
 
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
                 response = client.models.generate_content(
@@ -221,8 +221,12 @@ def generate_audio(segments, progress_bar, status_text):
                     wait_time = 10
                     status_text.text(f"サーバーエラー: {wait_time}秒後に再試行... ({i+1}/{len(segments)})")
                     time.sleep(wait_time)
+                elif "音声データが空" in error_str or "NoneType" in error_str:
+                    wait_time = 8
+                    status_text.text(f"空レスポンス: {wait_time}秒後に再試行 ({attempt+1}/{max_retries})...")
+                    time.sleep(wait_time)
                 elif attempt < max_retries - 1:
-                    time.sleep(3)
+                    time.sleep(5)
                 else:
                     st.warning(f"スキップ: {speaker}: {text[:20]}...")
                     break
