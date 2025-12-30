@@ -40,9 +40,10 @@ def parse_dialogue(content):
     segments = []
 
     # 様々な形式を統一フォーマットに変換
-    # Speaker 1/2 → 話者1/2
-    content = content.replace('Speaker 1:', '[話者1]:')
-    content = content.replace('Speaker 2:', '[話者2]:')
+    # speaker1/speaker2 (小文字、スペースなし) → 話者1/2
+    content = re.sub(r'(?i)speaker\s*1[:：]\s*', '[話者1]: ', content)
+    content = re.sub(r'(?i)speaker\s*2[:：]\s*', '[話者2]: ', content)
+    content = re.sub(r'(?i)speaker\s*3[:：]\s*', '[話者3]: ', content)
 
     # （話者1）や（話者２）→ [話者1]
     content = re.sub(r'（(話者\d+)）[:：]?\s*', r'[\1]: ', content)
