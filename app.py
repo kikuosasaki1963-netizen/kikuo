@@ -21,14 +21,12 @@ st.set_page_config(
 st.title("🎙️ Voice Generator")
 st.write("対話スクリプトから感情豊かな音声を生成します")
 
-# APIキー設定
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# APIキー設定（Secretsから取得）
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
 if not GEMINI_API_KEY:
-    GEMINI_API_KEY = st.text_input("Gemini API Key", type="password")
-    if not GEMINI_API_KEY:
-        st.warning("APIキーを入力してください")
-        st.stop()
+    st.error("APIキーが設定されていません。Streamlit CloudのSecretsにGEMINI_API_KEYを設定してください。")
+    st.stop()
 
 # クライアント初期化
 @st.cache_resource
