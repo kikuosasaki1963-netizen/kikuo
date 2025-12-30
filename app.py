@@ -1,4 +1,4 @@
-"""Voice Generator Web App - Streamlit (No pydub)"""
+"""Voice Generator Web App - Streamlit"""
 import os
 import re
 import wave
@@ -11,6 +11,10 @@ from google.genai import types
 from docx import Document
 import io
 import subprocess
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込み（ローカル用）
+load_dotenv()
 
 # ページ設定
 st.set_page_config(
@@ -22,11 +26,11 @@ st.set_page_config(
 st.title("🎙️ Voice Generator")
 st.write("対話スクリプトから感情豊かな音声を生成します")
 
-# APIキー設定（Secretsから取得）
-GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+# APIキー設定（.env または Streamlit Secretsから取得）
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
 if not GEMINI_API_KEY:
-    st.error("APIキーが設定されていません。Streamlit CloudのSecretsにGEMINI_API_KEYを設定してください。")
+    st.error("APIキーが設定されていません。.envファイルにGEMINI_API_KEYを設定してください。")
     st.stop()
 
 # クライアント初期化
